@@ -1,0 +1,49 @@
+USE quickfeed_db;
+
+-- 1. Kiểm tra dung lượng TRƯỚC khi tối ưu
+SELECT 
+    table_name AS 'Table Name',
+    ROUND((data_length / 1024 / 1024), 2) AS 'Data Size (MB)',
+    ROUND((index_length / 1024 / 1024), 2) AS 'Index Size (MB)',
+    ROUND(((data_length + index_length) / 1024 / 1024), 2) AS 'Total Size (MB)'
+FROM information_schema.TABLES
+WHERE table_schema = 'quickfeed_db' AND table_name = 'Posts';
+
+-- 2. Tiến hành xóa 3 Index thừa theo đúng yêu cầu bài thực hành
+ALTER TABLE Posts DROP INDEX idx_content;
+ALTER TABLE Posts DROP INDEX idx_post_type;
+ALTER TABLE Posts DROP INDEX idx_is_visible;
+
+-- 3. Kiểm tra lại dung lượng SAU KHI tối ưu
+SELECT 
+    table_name AS 'Table Name',
+    ROUND((data_length / 1024 / 1024), 2) AS 'Data Size (MB)',
+    ROUND((index_length / 1024 / 1024), 2) AS 'Index Size (MB)',
+    ROUND(((data_length + index_length) / 1024 / 1024), 2) AS 'Total Size (MB)'
+FROM information_schema.TABLES
+WHERE table_schema = 'quickfeed_db' AND table_name = 'Posts';   
+# Báo cáo Đánh giá Tối ưu hóa Lưu trữ và Hiệu năng - QuickFeed
+
+## 1. Vấn đề ban đầu
+Việc lạm dụng tạo Index trên toàn bộ các cột của bảng `Posts` (bao gồm cột văn bản dài `content` và các cột có độ phân giải dữ liệu thấp như `post_type`, `is_visible`) đã dẫn đến tình trạng quá tải ổ cứng. Dung lượng Index phình to vượt mức dữ liệu thực tế, khiến mỗi thao tác đăng bài (`INSERT`) phải cập nhật đồng thời 5 cây B-Tree ngầm, gây ra hiện tượng nghẽn tiến trình ghi và lỗi Timeout kéo dài.
+
+## 2. Giải pháp và Đánh đổi (Trade-off)
+* **Cân bằng Read & Write:** Index giúp tối ưu tốc độ đọc (`SELECT`), nhưng làm suy giảm nặng nề tốc độ ghi (`INSERT`, `UPDATE`) do chi phí duy trì cấu trúc cây. Việc loại bỏ 3 Index dư thừa (`idx_content`, `idx_post_type`, `idx_is_visible`) giúp giải phóng tải ghi đáng kể cho hệ thống.
+* **Cardinality & Optimizer:** Các cột có độ phân giải dữ liệu cực thấp (như `is_visible` chỉ có 2 giá trị 0/1) khiến MySQL Optimizer bỏ qua Index và chọn phương án Full Table Scan, biến Index thành gánh nặng lưu trữ vô ích.
+
+## 3. Kết quả sau khi tối ưu
+* **Dung lượng Index:** Giảm sút mạnh mẽ, thu gọn kích thước `Index_length` về mức tối ưu, chỉ tập trung phục vụ các cột có tính phân biệt cao (`user_id`, `created_at`).
+* **Hiệu năng:** Thao tác `INSERT` bài viết mới phản hồi nhanh chóng, giải quyết triệt để lỗi Timeout và tình trạng cạn kiệt dung lượng đĩa.
+# Nhật ký Tương tác AI (AI Prompt Log) - QuickFeed Optimization
+
+## Prompt 1: Về tác hại của việc tạo Index trên cột TEXT và cột BOOLEAN
+- **User Prompt:** "Trong MySQL, nếu tôi tạo Index trên một cột chứa văn bản dài (TEXT) và một cột kiểu BOOLEAN (0 và 1), thì điều này gây hại như thế nào đến bộ nhớ RAM, dung lượng Disk và bộ tối ưu hóa (Query Optimizer)?"
+- **AI Response Summary:** Tạo Index trên cột `TEXT` làm phình to kích thước `Index_length` do cây B-Tree phải lưu trữ các tiền tố chuỗi lớn. Trong khi đó, tạo Index trên cột `BOOLEAN` (Cardinality cực thấp) gây lãng phí tài nguyên bảo trì cấu trúc, đồng thời Query Optimizer thường bỏ qua nó và ưu tiên Full Table Scan.
+
+## Prompt 2: Truy vấn thông tin dung lượng từ information_schema
+- **User Prompt:** "Hãy cho tôi xem truy vấn SQL sử dụng bảng information_schema.TABLES để in ra kích thước Data và kích thước Index của bảng 'Posts' tính theo đơn vị Megabyte (MB)."
+- **AI Response Summary:** Cung cấp câu lệnh lấy `data_length` và `index_length`, chia cho `1024 / 1024` và sử dụng hàm `ROUND` để chuyển đổi sang đơn vị MB hiển thị trực quan trên bảng kết quả.
+
+## Prompt 3: Giải pháp thay thế cho cột TEXT Index
+- **User Prompt:** "Nếu muốn tìm kiếm từ khóa bên trong cột content (kiểu TEXT) mà không bị tốn quá nhiều dung lượng như B-Tree Index, tôi nên sử dụng cơ chế nào của MySQL?"
+- **AI Response Summary:** Gợi ý sử dụng `FULLTEXT` Index thay vì B-Tree thông thường khi cần tối ưu hóa tìm kiếm văn bản tự do trong các bài viết mạng xã hội.
