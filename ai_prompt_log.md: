@@ -1,0 +1,13 @@
+# Nhật ký Tương tác AI (AI Prompt Log) - QuickFeed Optimization
+
+## Prompt 1: Về tác hại của việc tạo Index trên cột TEXT và cột BOOLEAN
+- **User Prompt:** "Trong MySQL, nếu tôi tạo Index trên một cột chứa văn bản dài (TEXT) và một cột kiểu BOOLEAN (0 và 1), thì điều này gây hại như thế nào đến bộ nhớ RAM, dung lượng Disk và bộ tối ưu hóa (Query Optimizer)?"
+- **AI Response Summary:** Tạo Index trên cột `TEXT` làm phình to kích thước `Index_length` do cây B-Tree phải lưu trữ các tiền tố chuỗi lớn. Trong khi đó, tạo Index trên cột `BOOLEAN` (Cardinality cực thấp) gây lãng phí tài nguyên bảo trì cấu trúc, đồng thời Query Optimizer thường bỏ qua nó và ưu tiên Full Table Scan.
+
+## Prompt 2: Truy vấn thông tin dung lượng từ information_schema
+- **User Prompt:** "Hãy cho tôi xem truy vấn SQL sử dụng bảng information_schema.TABLES để in ra kích thước Data và kích thước Index của bảng 'Posts' tính theo đơn vị Megabyte (MB)."
+- **AI Response Summary:** Cung cấp câu lệnh lấy `data_length` và `index_length`, chia cho `1024 / 1024` và sử dụng hàm `ROUND` để chuyển đổi sang đơn vị MB hiển thị trực quan trên bảng kết quả.
+
+## Prompt 3: Giải pháp thay thế cho cột TEXT Index
+- **User Prompt:** "Nếu muốn tìm kiếm từ khóa bên trong cột content (kiểu TEXT) mà không bị tốn quá nhiều dung lượng như B-Tree Index, tôi nên sử dụng cơ chế nào của MySQL?"
+- **AI Response Summary:** Gợi ý sử dụng `FULLTEXT` Index thay vì B-Tree thông thường khi cần tối ưu hóa tìm kiếm văn bản tự do trong các bài viết mạng xã hội.
